@@ -1,0 +1,15 @@
+<?php
+
+/**
+ * @file
+ * Delete configuration settings on uninstall.
+ */
+
+/**
+ * Implements hook_uninstall().
+ */
+function homepage_scheduler_uninstall() {
+  // Delete state form configuration and status settings.
+  \Drupal::state()->delete('homepage_scheduler.settings');
+  \Drupal::state()->delete('homepage_scheduler.status');
+}

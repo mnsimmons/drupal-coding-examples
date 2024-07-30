@@ -1,0 +1,7 @@
+homepage_scheduler.admin_form:
+  path: 'admin/config/example/homepage-scheduler'
+  defaults:
+    _form: '\Drupal\homepage_scheduler\Form\HomepageSchedulerForm'
+    _title: 'Homepage Scheduler'
+  requirements:
+    _permission: 'access homepage scheduler config page'

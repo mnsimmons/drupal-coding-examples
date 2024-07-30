@@ -1,0 +1,8 @@
+name: Webform submissions to Google Sheets
+type: module
+description: 'Provides additional webform functionality.'
+package: Global
+core_version_requirement: ^9 || ^10
+configure: webform_to_gsheets.settings
+dependencies:
+- webform:webform

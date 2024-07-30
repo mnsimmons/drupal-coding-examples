@@ -1,0 +1,5 @@
+name: Homepage Scheduler
+description: "Provides a form to schedule homepage takeovers for the period of time."
+type: module
+core_version_requirement: ^9 || ^10
+configure: homepage_scheduler.admin_form

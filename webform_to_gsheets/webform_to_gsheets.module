@@ -1,0 +1,167 @@
+<?php
+
+/**
+ * @file
+ * Module file for the Webform to Gsheets module.
+ */
+
+use Drupal\Core\Form\FormStateInterface;
+use Google\Service\Sheets;
+use Google\Service\Sheets\BatchUpdateSpreadsheetRequest;
+use Google\Service\Sheets\Request;
+use Google\Service\Sheets\ValueRange;
+
+/**
+ * Implements hook_form_alter().
+ */
+function webform_to_gsheets_form_alter(&$form, FormStateInterface $form_state, $form_id) {
+  if (str_contains($form_id, 'webform_submission')
+    && (str_contains($form_id, 'add_form')
+    || str_contains($form_id, 'test_form'))
+  ) {
+    // Add a custom submit handler to log the webform submissions.
+    $form['actions']['submit']['#submit'][] = '_webform_to_gsheets_submit';
+  }
+}
+
+/**
+ * Custom submit handler for webform submissions.
+ */
+function _webform_to_gsheets_submit(&$form, FormStateInterface $form_state) {
+  // Log webform submission to Google Sheets.
+  $sheet_name = $form['#webform_id'];
+  $webform_values = $form_state->getValues();
+  ksort($webform_values);
+  $sheet_exists = FALSE;
+
+  $service = _webform_to_gsheets_get_google_sheets_service();
+  $spreadsheet_id = \Drupal::config('webform_to_gsheets.settings')->get('spreadsheet_id');
+
+  $spreadsheet = $service->spreadsheets->get($spreadsheet_id);
+  $sheets = $spreadsheet->getSheets();
+  foreach ($sheets as $sheet) {
+    if ($sheet->getProperties()->getTitle() === $sheet_name) {
+      $sheet_exists = TRUE;
+      break;
+    }
+  }
+
+  if (!$sheet_exists) {
+    $sheet_exists = _webform_to_gsheets_add_new_sheet($service, $spreadsheet_id, $sheet_name, array_keys($webform_values));
+  }
+
+  if ($sheet_exists) {
+    // The sheet exists, so append a row of webform values.
+    foreach ($webform_values as $key => $value) {
+      if (is_array($value)) {
+        $values[] = implode('|', $value);
+        continue;
+      }
+      $values[] = $value;
+    }
+    // Add submission timestamp to values.
+    $request_time = \Drupal::time()->getRequestTime();
+    $values[] = date('Y-m-d H:i:s', $request_time);
+
+    $request_body = new ValueRange(['values' => [$values]]);
+    $params = ['valueInputOption' => 'RAW'];
+
+    $service->spreadsheets_values->append(
+      $spreadsheet_id,
+      $sheet_name,
+      $request_body,
+      $params
+    );
+  }
+}
+
+/**
+ * Retrieves a Google Sheets service instance.
+ *
+ * @return Google\Services\Sheets\Sheets
+ */
+function _webform_to_gsheets_get_google_sheets_service() {
+  $client = new \Google_Client();
+  $client->setScopes(Sheets::SPREADSHEETS);
+  $client->setAccessType('offline');
+  $client->setAuthConfig(\Drupal::config('webform_to_gsheets.settings')->get('google_service_credential_file'));
+  return new Sheets($client);
+}
+
+/**
+ * Adds a new sheet to a Google Spreadsheet and formats it for webform data.
+ *
+ * @param Google\Services\Sheets\Sheets $service
+ *  A Google Sheets service instance.
+ * @param string $spreadsheet_id
+ *  The ID of the spreadsheet to which the sheet is added.
+ * @param string $sheet_name
+ *  The name of the new sheet.
+ * @param array $webform_fields
+ *  An array of webform field machine names.
+ *
+ * @return Google\Services\Sheets\ValueRange
+ */
+function _webform_to_gsheets_add_new_sheet ($service, $spreadsheet_id, $sheet_name, $webform_fields) {
+  // Add an new sheet since the sheet does not exist.
+  $requests = [
+    new Request([
+      'addSheet' => [
+        'properties' => [
+          'title' => $sheet_name,
+        ],
+      ],
+    ]),
+  ];
+  $batchUpdate = new BatchUpdateSpreadsheetRequest(['requests' => $requests]);
+  $response = $service->spreadsheets->batchUpdate($spreadsheet_id, $batchUpdate);
+  $sheet_id = $response->replies[0]->addSheet->properties->sheetId;
+
+  $requests = [
+    new Request([
+      // Freeze the first row of new sheet, for column headings.
+      'updateSheetProperties' => [
+        'properties' => [
+          'sheetId' => $sheet_id,
+          'gridProperties' => [
+            'frozenRowCount' => 1,
+          ],
+        ],
+        'fields' => 'gridProperties.frozenRowCount',
+      ],
+    ]),
+    new Request([
+      // Bold the first row of new sheet, for column headings.
+      'repeatCell' => [
+        'range' => [
+          'sheetId' => $sheet_id,
+          'endRowIndex' => 1,
+        ],
+        'cell' => [
+          'userEnteredFormat' => [
+            'textFormat' => [
+              'bold' => TRUE,
+            ],
+          ],
+        ],
+        'fields' => 'userEnteredFormat.textFormat.bold',
+      ],
+    ]),
+  ];
+  $batchUpdate = new BatchUpdateSpreadsheetRequest(['requests' => $requests]);
+  $service->spreadsheets->batchUpdate($spreadsheet_id, $batchUpdate);
+
+  // Append a row of column headings to the new sheet.
+  ksort($webform_fields);
+  $column_headings = $webform_fields;
+  $column_headings[] = 'Date';
+
+  $request_body = new ValueRange(['values' => [$column_headings]]);
+  $params = ['valueInputOption' => 'RAW'];
+  return $service->spreadsheets_values->append(
+    $spreadsheet_id,
+    $sheet_name,
+    $request_body,
+    $params
+  );
+}

@@ -1,0 +1,5 @@
+webform_to_gsheets.settings:
+  title: 'Webform to Gsheets Settings'
+  route_name: webform_to_gsheets.settings
+  parent: global.admin_index
+  description: 'Configure Global webform settings'

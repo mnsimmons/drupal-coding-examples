@@ -1,0 +1,7 @@
+{
+    "name": "global/webform_to_gsheets",
+    "version": "1.0",
+    "require": {
+        "google/apiclient": "^2.0"
+    }
+}

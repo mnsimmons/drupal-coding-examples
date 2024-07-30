@@ -1,0 +1,66 @@
+<?php
+
+/**
+ * @file
+ * Homepage Scheduler module file.
+ */
+
+/**
+ * Implements hook_cron().
+ */
+function homepage_scheduler_cron() {
+  $data = \Drupal::state()->get('homepage_scheduler.settings', []);
+  $status = \Drupal::state()->get('homepage_scheduler.status', 'unscheduled');
+
+  if (empty($data)) {
+    return;
+  }
+
+  $takeover_start = $data['start']->getTimeStamp();
+  $takeover_end = $data['end']->getTimeStamp();
+  $current_time = \Drupal::time()->getRequestTime();
+
+  if ($status == 'pending' && $current_time >= $takeover_start && $current_time < $takeover_end) {
+    // Set the homepage to the takeover nid.
+    \Drupal::configFactory()
+      ->getEditable('system.site')
+      ->set('page.front', '/node/' . $data['takeover_nid'])
+      ->save();
+
+    // Update the status so cron won't trigger until time for the default
+    // homepage change.
+    \Drupal::state()->set('homepage_scheduler.status', 'active');
+  }
+
+  if ($status == 'active' && $current_time >= $takeover_end) {
+    // Set the homepage to the default nid.
+    \Drupal::configFactory()
+      ->getEditable('system.site')
+      ->set('page.front', '/node/' . $data['default_nid'])
+      ->save();
+
+    // Update the status so cron won't trigger until homepage schedule form
+    // is re-submitted.
+    \Drupal::state()->set('homepage_scheduler.status', 'complete');
+  }
+}
+
+/**
+ * Implements hook_element_info_alter().
+ */
+function homepage_scheduler_element_info_alter(array &$types) {
+  $types['datetime']['#process'][] = '_homepage_scheduler_datetime_set_format';
+}
+
+/**
+ * Element process callback for datetime fields.
+ */
+function _homepage_scheduler_datetime_set_format($element) {
+  // Remove seconds in browsers that support HTML5 type=date.
+  $field_ids = ['edit-start-takeover', 'edit-stop-takeover'];
+  if (in_array($element['#id'], $field_ids)) {
+    $element['time']['#attributes']['step'] = 60;
+  }
+
+  return $element;
+}

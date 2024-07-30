@@ -1,0 +1,5 @@
+homepage_scheduler.admin_form:
+  route_name: homepage_scheduler.admin_form
+  title: 'Homepage Scheduler'
+  description: 'Homepage scheduling'
+  parent: utility.admin_config_example

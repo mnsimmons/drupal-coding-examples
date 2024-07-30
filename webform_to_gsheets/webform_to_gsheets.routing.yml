@@ -1,0 +1,7 @@
+webform_to_gsheets.settings:
+  path: '/admin/config/global/webform-to-gsheets-settings'
+  defaults:
+    _form: '\Drupal\webform_to_gsheets\Form\WebformToGsheetsSettingsForm'
+    _title: 'Webform to Gsheets Settings'
+  requirements:
+    _permission: 'access webform to gsheets settings'
